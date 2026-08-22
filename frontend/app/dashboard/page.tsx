@@ -5,24 +5,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getBudgetSummary } from "../../lib/budget";
 import { getItinerary, type Activity } from "../../lib/itinerary";
+import { destinations as featuredDestinations, getTrips, type Trip } from "../../lib/mockData";
 
-// Define TypeScript interfaces for your database models
-interface Trip {
-  id: string;
-  name: string;
-  startDate: string;
-  endDate: string;
-  budget: number;
-  coverImage: string;
-  status: string;
-  cities: string[];
-}
-
-interface Destination {
-  name: string;
-  country: string;
-  image: string;
-}
+type Destination = (typeof featuredDestinations)[number];
 
 export default function Dashboard() {
   const router = useRouter();
@@ -41,44 +26,22 @@ export default function Dashboard() {
     }
 
     const savedUser = localStorage.getItem("globetrotter_user");
-    let userEmail = "";
 
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser);
         setUserName(user.name || "Traveler");
-        userEmail = user.email;
       } catch {
         setUserName("Traveler");
       }
     }
 
-    // Fetch Trips and Destinations from Database APIs concurrently
-    const fetchDashboardData = async () => {
-      try {
-        // Fetch trips belonging to this user
-        if (userEmail) {
-          const tripsRes = await fetch(`/api/trips?email=${encodeURIComponent(userEmail)}`);
-          if (tripsRes.ok) {
-            const tripsData = await tripsRes.json();
-            setTrips(tripsData.trips || tripsData);
-          }
-        }
-
-        // Fetch cities/destinations
-        const destRes = await fetch("/api/destinations");
-        if (destRes.ok) {
-          const destData = await destRes.json();
-          setDestinations(destData.destinations || []);
-        }
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
+    // Trip creation currently persists client-side. Reading from the same store
+    // keeps the dashboard, My Trips, and trip details in sync until PostgreSQL
+    // credentials are configured.
+    setTrips(getTrips());
+    setDestinations(featuredDestinations);
+    setLoading(false);
   }, [router]);
 
   // Aggregate budget across all trips

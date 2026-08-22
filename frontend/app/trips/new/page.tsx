@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { ChangeEvent, FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getTrips, saveTrips } from "../../../lib/mockData";
@@ -29,6 +29,19 @@ export default function NewTripPage() {
   const [cities, setCities] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [coverImage, setCoverImage] = useState("");
+
+  const chooseCoverPhoto = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Please choose an image file for the cover photo.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setCoverImage(String(reader.result));
+    reader.readAsDataURL(file);
+  };
 
   const createTrip = (e: FormEvent) => {
     e.preventDefault();
@@ -50,7 +63,7 @@ export default function NewTripPage() {
     setLoading(true);
 
     // Pick a random cover image for variety
-    const coverImage =
+    const defaultCoverImage =
       COVER_IMAGES[Math.floor(Math.random() * COVER_IMAGES.length)];
 
     const newTrip = {
@@ -65,7 +78,7 @@ export default function NewTripPage() {
         .filter(Boolean),
       budget: Number(budget) || 0,
       status: "upcoming" as const,
-      coverImage,
+      coverImage: coverImage || defaultCoverImage,
     };
 
     const trips = getTrips();
@@ -202,6 +215,19 @@ export default function NewTripPage() {
               rows={4}
               className="w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#0058bc]"
             />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-[#172033]">
+              Cover photo <span className="font-normal text-slate-400">(optional)</span>
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={chooseCoverPhoto}
+              className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-[#e8f0ff] file:px-4 file:py-2 file:font-semibold file:text-[#0058bc]"
+            />
+            {coverImage && <img src={coverImage} alt="Selected cover preview" className="mt-3 h-32 w-full rounded-xl object-cover" />}
           </div>
 
           {error && (

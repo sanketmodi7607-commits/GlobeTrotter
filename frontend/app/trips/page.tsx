@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getTrips, type Trip } from "../../lib/mockData";
+import { deleteTrip, getTrips, type Trip } from "../../lib/mockData";
 import { getBudgetSummary } from "../../lib/budget";
 import { getItinerary, detectConflicts } from "../../lib/itinerary";
 
@@ -33,6 +33,12 @@ export default function TripsListPage() {
 
   const filtered =
     filter === "all" ? trips : trips.filter((t) => t.status === filter);
+
+  const handleDelete = (trip: Trip) => {
+    if (!window.confirm(`Delete “${trip.name}”? This cannot be undone.`)) return;
+    deleteTrip(trip.id);
+    setTrips((current) => current.filter((item) => item.id !== trip.id));
+  };
 
   const fmt = (d: string) =>
     new Date(d + "T00:00:00").toLocaleDateString("en-US", {
@@ -123,7 +129,7 @@ export default function TripsListPage() {
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((trip) => (
-              <TripCard key={trip.id} trip={trip} fmt={fmt} />
+              <TripCard key={trip.id} trip={trip} fmt={fmt} onDelete={handleDelete} />
             ))}
           </div>
         )}
@@ -135,9 +141,11 @@ export default function TripsListPage() {
 function TripCard({
   trip,
   fmt,
+  onDelete,
 }: {
   trip: Trip;
   fmt: (d: string) => string;
+  onDelete: (trip: Trip) => void;
 }) {
   const summary = getBudgetSummary(trip.id, trip.budget);
   const budgetPct = summary.percentUsed;
@@ -146,8 +154,7 @@ function TripCard({
 
 
   return (
-    <Link
-      href={`/trips/${trip.id}`}
+    <article
       className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
     >
       {/* Cover image */}
@@ -177,15 +184,15 @@ function TripCard({
 
       <div className="p-5">
         <div className="flex items-start justify-between gap-2">
-          <div>
+          <Link href={`/trips/${trip.id}`} className="min-w-0">
             <h3 className="font-bold text-[#172033]">{trip.name}</h3>
             <p className="mt-1 text-xs text-slate-400">
               {fmt(trip.startDate)} – {fmt(trip.endDate)}
             </p>
-          </div>
-          <span className="material-symbols-outlined text-slate-300 group-hover:text-[#0058bc] transition">
-            arrow_forward
-          </span>
+          </Link>
+          <Link href={`/trips/${trip.id}`} aria-label={`View ${trip.name}`} className="shrink-0">
+            <span className="material-symbols-outlined text-slate-300 group-hover:text-[#0058bc] transition">arrow_forward</span>
+          </Link>
         </div>
 
         {/* Cities */}
@@ -226,7 +233,23 @@ function TripCard({
             />
           </div>
         </div>
+
+        <div className="mt-4 flex gap-2">
+          <Link
+            href={`/trips/${trip.id}/edit`}
+            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-center text-xs font-semibold text-slate-600 hover:border-[#0058bc] hover:text-[#0058bc]"
+          >
+            Edit
+          </Link>
+          <button
+            type="button"
+            onClick={() => onDelete(trip)}
+            className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+          >
+            Delete
+          </button>
+        </div>
       </div>
-    </Link>
+    </article>
   );
 }
