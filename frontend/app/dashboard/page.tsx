@@ -3,14 +3,32 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getTrips, destinations, Trip } from "../../lib/mockData";
 import { getBudgetSummary } from "../../lib/budget";
 import { getItinerary, type Activity } from "../../lib/itinerary";
+
+// Define TypeScript interfaces for your database models
+interface Trip {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  budget: number;
+  coverImage: string;
+  status: string;
+  cities: string[];
+}
+
+interface Destination {
+  name: string;
+  country: string;
+  image: string;
+}
 
 export default function Dashboard() {
   const router = useRouter();
 
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [destinations, setDestinations] = useState<Destination[]>([]);
   const [userName, setUserName] = useState("Traveler");
   const [loading, setLoading] = useState(true);
 
@@ -23,18 +41,44 @@ export default function Dashboard() {
     }
 
     const savedUser = localStorage.getItem("globetrotter_user");
+    let userEmail = "";
 
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser);
         setUserName(user.name || "Traveler");
+        userEmail = user.email;
       } catch {
         setUserName("Traveler");
       }
     }
 
-    setTrips(getTrips());
-    setLoading(false);
+    // Fetch Trips and Destinations from Database APIs concurrently
+    const fetchDashboardData = async () => {
+      try {
+        // Fetch trips belonging to this user
+        if (userEmail) {
+          const tripsRes = await fetch(`/api/trips?email=${encodeURIComponent(userEmail)}`);
+          if (tripsRes.ok) {
+            const tripsData = await tripsRes.json();
+            setTrips(tripsData.trips || tripsData);
+          }
+        }
+
+        // Fetch cities/destinations
+        const destRes = await fetch("/api/destinations");
+        if (destRes.ok) {
+          const destData = await destRes.json();
+          setDestinations(destData.destinations || []);
+        }
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
   }, [router]);
 
   // Aggregate budget across all trips
@@ -76,7 +120,6 @@ export default function Dashboard() {
   // Find next upcoming activity across all trips
   let nextActivity: { activity: Activity; tripId: string } | null = null;
   for (const t of trips) {
-
     const itins = getItinerary(t.id);
     for (const a of itins) {
       const actDate = new Date(`${a.date}T${a.startTime}`);
@@ -90,7 +133,6 @@ export default function Dashboard() {
     localStorage.removeItem("globetrotter_logged_in");
     router.push("/");
   };
-
 
   if (loading) {
     return (
@@ -106,7 +148,6 @@ export default function Dashboard() {
       {/* NAVBAR */}
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
-
           <Link
             href="/dashboard"
             className="flex items-center gap-3"
@@ -116,7 +157,6 @@ export default function Dashboard() {
                 flight_takeoff
               </span>
             </div>
-
             <span className="text-xl font-bold text-[#0058bc]">
               GlobeTrotter
             </span>
@@ -129,14 +169,12 @@ export default function Dashboard() {
             >
               Dashboard
             </Link>
-
             <Link
               href="/trips"
               className="text-slate-600 hover:text-[#0058bc]"
             >
               My Trips
             </Link>
-
             <Link
               href="/cities"
               className="text-slate-600 hover:text-[#0058bc]"
@@ -146,7 +184,6 @@ export default function Dashboard() {
           </nav>
 
           <div className="flex items-center gap-3">
-
             <button className="rounded-full p-2 hover:bg-slate-100">
               <span className="material-symbols-outlined">
                 notifications
@@ -160,7 +197,6 @@ export default function Dashboard() {
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0058bc] font-bold text-white">
                 {userName.charAt(0).toUpperCase()}
               </div>
-
               <span className="hidden font-medium sm:block">
                 {userName}
               </span>
@@ -180,16 +216,13 @@ export default function Dashboard() {
 
         {/* HERO */}
         <section className="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
-
           <div>
             <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-[#0058bc]">
               Your travel dashboard
             </p>
-
             <h1 className="text-4xl font-bold md:text-5xl">
               Welcome back, {userName.split(" ")[0]}!
             </h1>
-
             <p className="mt-3 max-w-xl text-slate-600">
               Ready to discover your next story? Continue planning
               your adventures or explore somewhere new.
@@ -209,21 +242,18 @@ export default function Dashboard() {
 
         {/* STATS */}
         <section className="mb-12 grid grid-cols-2 gap-4 lg:grid-cols-4">
-
           <Stat
             icon="luggage"
             label="Total Trips"
             value={String(trips.length)}
           />
-
           <Stat
             icon="location_on"
             label="Cities Explored"
             value={String(
-              new Set(trips.flatMap((t) => t.cities)).size || 18
+              new Set(trips.flatMap((t) => t.cities || [])).size || 18
             )}
           />
-
           <Stat
             icon="calendar_month"
             label="Travel Days"
@@ -235,13 +265,11 @@ export default function Dashboard() {
               }, 0) || 46
             )}
           />
-
           <Stat
             icon="payments"
             label="Planned Budget"
             value={`$${trips.reduce((acc, t) => acc + (t.budget || 0), 0).toLocaleString()}`}
           />
-
         </section>
 
         {/* NEXT ACTIVITY BANNER (if any) */}
@@ -279,19 +307,15 @@ export default function Dashboard() {
 
         {/* TRIPS */}
         <section className="mb-12">
-
           <div className="mb-6 flex items-center justify-between">
-
             <div>
               <h2 className="text-2xl font-bold">
                 Recent Trips
               </h2>
-
               <p className="mt-1 text-sm text-slate-500">
                 Pick up where you left off.
               </p>
             </div>
-
             <Link
               href="/trips"
               className="font-semibold text-[#0058bc]"
@@ -305,15 +329,12 @@ export default function Dashboard() {
               <span className="material-symbols-outlined text-5xl text-slate-300">
                 travel_explore
               </span>
-
               <h3 className="mt-4 text-xl font-bold">
                 No trips yet
               </h3>
-
               <p className="mt-2 text-slate-500">
                 Start planning your first adventure.
               </p>
-
               <Link
                 href="/trips/new"
                 className="mt-5 inline-flex rounded-lg bg-[#0058bc] px-5 py-3 font-semibold text-white"
@@ -326,81 +347,68 @@ export default function Dashboard() {
               {trips.slice(0, 4).map((trip) => {
                 const tripSummary = getBudgetSummary(trip.id, trip.budget);
                 return (
-                <Link
-                  key={trip.id}
-                  href={`/trips/${trip.id}`}
-                  className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
-                >
-
-                  <div className="relative h-52 overflow-hidden">
-                    <img
-                      src={trip.coverImage}
-                      alt={trip.name}
-                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
-
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-
-                    <span className="absolute bottom-4 left-4 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold">
-                      {trip.status === "upcoming"
-                        ? "Upcoming"
-                        : trip.status}
-                    </span>
-                  </div>
-
-                  <div className="p-6">
-
-                    <div className="flex justify-between gap-4">
-
-                      <div>
-                        <h3 className="text-xl font-bold">
-                          {trip.name}
-                        </h3>
-
-                        <p className="mt-1 text-sm text-slate-500">
-                          {formatDate(trip.startDate)} –{" "}
-                          {formatDate(trip.endDate)}
-                        </p>
-                      </div>
-
-                      <span className="material-symbols-outlined text-slate-400 group-hover:text-[#0058bc]">
-                        arrow_forward
+                  <Link
+                    key={trip.id}
+                    href={`/trips/${trip.id}`}
+                    className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+                  >
+                    <div className="relative h-52 overflow-hidden">
+                      <img
+                        src={trip.coverImage || "https://images.unsplash.com/photo-1488646953014-85cb44e25828"}
+                        alt={trip.name}
+                        className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                      <span className="absolute bottom-4 left-4 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold">
+                        {trip.status === "upcoming" ? "Upcoming" : trip.status || "Planned"}
                       </span>
                     </div>
 
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      {trip.cities.map((city) => (
-                        <span
-                          key={city}
-                          className="rounded-full bg-[#e8f0ff] px-3 py-1 text-xs font-medium text-[#0058bc]"
-                        >
-                          {city}
-                        </span>
-                      ))}
-                    </div>
-
-                    <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
-
-                      <div>
-                        <span className="text-xs text-slate-500">
-                          Budget: ${tripSummary.totalSpent.toLocaleString()} / ${trip.budget.toLocaleString()}
-                        </span>
-                        <div className="mt-1.5 h-1.5 w-28 rounded-full bg-slate-100">
-                          <div
-                            className={`h-full rounded-full ${tripSummary.percentUsed >= 100 ? "bg-red-500" : tripSummary.percentUsed >= 80 ? "bg-amber-500" : "bg-[#0058bc]"}`}
-                            style={{ width: `${Math.min(tripSummary.percentUsed, 100)}%` }}
-                          />
+                    <div className="p-6">
+                      <div className="flex justify-between gap-4">
+                        <div>
+                          <h3 className="text-xl font-bold">
+                            {trip.name}
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {formatDate(trip.startDate)} – {formatDate(trip.endDate)}
+                          </p>
                         </div>
+                        <span className="material-symbols-outlined text-slate-400 group-hover:text-[#0058bc]">
+                          arrow_forward
+                        </span>
                       </div>
 
-                      <span className="font-bold text-[#0058bc]">
-                        {tripSummary.percentUsed}% used
-                      </span>
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        {trip.cities && trip.cities.map((city) => (
+                          <span
+                            key={city}
+                            className="rounded-full bg-[#e8f0ff] px-3 py-1 text-xs font-medium text-[#0058bc]"
+                          >
+                            {city}
+                          </span>
+                        ))}
+                      </div>
 
+                      <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
+                        <div>
+                          <span className="text-xs text-slate-500">
+                            Budget: ${tripSummary.totalSpent.toLocaleString()} / ${(trip.budget || 0).toLocaleString()}
+                          </span>
+                          <div className="mt-1.5 h-1.5 w-28 rounded-full bg-slate-100">
+                            <div
+                              className={`h-full rounded-full ${tripSummary.percentUsed >= 100 ? "bg-red-500" : tripSummary.percentUsed >= 80 ? "bg-amber-500" : "bg-[#0058bc]"}`}
+                              style={{ width: `${Math.min(tripSummary.percentUsed, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                        <span className="font-bold text-[#0058bc]">
+                          {tripSummary.percentUsed}% used
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                </Link>
-              );
+                  </Link>
+                );
               })}
             </div>
           )}
@@ -408,20 +416,16 @@ export default function Dashboard() {
 
         {/* BUDGET + PLAN */}
         <section className="mb-12 grid gap-6 lg:grid-cols-3">
-
           <div className="rounded-2xl border border-slate-200 bg-white p-7 lg:col-span-2">
-
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold">
                   Budget Overview
                 </h2>
-
                 <p className="mt-1 text-sm text-slate-500">
                   Your total travel spending across all trips.
                 </p>
               </div>
-
               {trips[0] && (
                 <Link
                   href={`/trips/${trips[0].id}`}
@@ -433,17 +437,14 @@ export default function Dashboard() {
             </div>
 
             <div className="mt-7 flex items-end justify-between">
-
               <div>
                 <p className="text-3xl font-bold">
                   ${totalSpentAcrossAll.toLocaleString()}
                 </p>
-
                 <p className="text-sm text-slate-500">
                   of ${totalBudgetAcrossAll.toLocaleString()} planned
                 </p>
               </div>
-
               <span className={`font-bold ${overallPercent >= 100 ? "text-red-600" : overallPercent >= 80 ? "text-amber-600" : "text-[#00875a]"}`}>
                 {overallPercent}%
               </span>
@@ -465,20 +466,16 @@ export default function Dashboard() {
           </div>
 
           <div className="rounded-2xl bg-gradient-to-br from-[#0058bc] to-[#00a8c8] p-7 text-white">
-
             <span className="material-symbols-outlined text-4xl">
               flight
             </span>
-
             <h2 className="mt-6 text-2xl font-bold">
               Where will you go next?
             </h2>
-
             <p className="mt-3 text-sm leading-6 text-white/80">
               Build a personalized multi-city itinerary in just
               a few simple steps.
             </p>
-
             <Link
               href="/trips/new"
               className="mt-7 flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-[#0058bc]"
@@ -493,17 +490,14 @@ export default function Dashboard() {
 
         {/* DESTINATIONS */}
         <section className="pb-10">
-
           <h2 className="text-2xl font-bold">
             Recommended for You
           </h2>
-
           <p className="mt-1 text-sm text-slate-500">
             Places worth adding to your next adventure.
           </p>
 
           <div className="mt-6 grid gap-6 md:grid-cols-3">
-
             {destinations.map((destination) => (
               <Link
                 href="/cities"
@@ -517,17 +511,13 @@ export default function Dashboard() {
                     className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                   />
                 </div>
-
                 <div className="p-5">
-
                   <h3 className="text-lg font-bold">
                     {destination.name}
                   </h3>
-
                   <p className="text-sm text-slate-500">
                     {destination.country}
                   </p>
-
                 </div>
               </Link>
             ))}
@@ -554,11 +544,9 @@ function Stat({
           {icon}
         </span>
       </div>
-
       <p className="mt-5 text-sm text-slate-500">
         {label}
       </p>
-
       <p className="mt-1 text-2xl font-bold">
         {value}
       </p>
@@ -578,7 +566,6 @@ function Budget({
       <p className="text-xs text-slate-500">
         {label}
       </p>
-
       <p className="mt-1 font-bold">
         {value}
       </p>
@@ -587,6 +574,7 @@ function Budget({
 }
 
 function formatDate(date: string) {
+  if (!date) return "";
   return new Date(date).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
