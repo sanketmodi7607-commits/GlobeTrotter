@@ -12,9 +12,11 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSignup = (e: FormEvent<HTMLFormElement>) => {
+  const handleSignup = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
 
@@ -23,43 +25,41 @@ export default function SignupPage() {
       return;
     }
 
-    if (!email.includes("@")) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
-
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
 
-    const existingUser = localStorage.getItem("globetrotter_user");
+    setLoading(true);
 
-    if (existingUser) {
-      const user = JSON.parse(existingUser);
+    try {
+      const response = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          confirmPassword,
+        }),
+      });
 
-      if (user.email === email) {
-        setError("An account with this email already exists.");
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        setError(data.error || "Failed to create account.");
         return;
       }
+
+      alert("Account created successfully!");
+      router.push("/");
+    } catch (err) {
+      setError("Something went wrong. Please check your network connection.");
+    } finally {
+      setLoading(false);
     }
-
-    const newUser = {
-      name,
-      email,
-      password,
-    };
-
-    localStorage.setItem("globetrotter_user", JSON.stringify(newUser));
-
-    alert("Account created successfully!");
-
-    router.push("/");
   };
 
   return (
@@ -188,7 +188,7 @@ export default function SignupPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-500"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-500 hover:text-gray-700"
                   >
                     {showPassword ? "Hide" : "Show"}
                   </button>
@@ -224,9 +224,10 @@ export default function SignupPage() {
               {/* CREATE ACCOUNT */}
               <button
                 type="submit"
-                className="w-full rounded-xl bg-[#163c35] py-4 font-semibold text-white shadow-lg transition hover:bg-[#0e2c27]"
+                disabled={loading}
+                className="w-full rounded-xl bg-[#163c35] py-4 font-semibold text-white shadow-lg transition hover:bg-[#0e2c27] disabled:opacity-50"
               >
-                Create account →
+                {loading ? "Creating account..." : "Create account →"}
               </button>
             </form>
 
