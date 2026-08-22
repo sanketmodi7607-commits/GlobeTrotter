@@ -53,8 +53,12 @@ export default function SignupPage() {
         return;
       }
 
-      alert("Account created successfully!");
-      router.push("/");
+      if (data.user) {
+        localStorage.setItem("globetrotter_logged_in", "true");
+        localStorage.setItem("globetrotter_user", JSON.stringify(data.user));
+      }
+
+      router.push("/dashboard");
     } catch (err) {
       setError("Something went wrong. Please check your network connection.");
     } finally {
