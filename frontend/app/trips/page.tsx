@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -394,6 +394,18 @@ function formatDate(dateStr: string) {
         day: "numeric",
         year: "numeric",
       });
+<<<<<<< HEAD
+=======
+    }
+
+    return String(dateStr);
+  } catch {
+    return String(dateStr);
+  }
+}
+
+=======
+>>>>>>> 36fed23e912c028337c786ad2b6f3f63ca9f4553
 "use client";
 
 import { useEffect, useState } from "react";
