@@ -47,14 +47,23 @@ export default function SignupPage() {
       });
 
       const data = await response.json();
+      // Save logged-in user
+localStorage.setItem("globetrotter_logged_in", "true");
+localStorage.setItem("globetrotter_user", JSON.stringify(data.user));
+
+router.push("/dashboard");
 
       if (!response.ok) {
         setError(data.error || "Failed to create account.");
         return;
       }
 
-      alert("Account created successfully!");
-      router.push("/");
+      if (data.user) {
+        localStorage.setItem("globetrotter_logged_in", "true");
+        localStorage.setItem("globetrotter_user", JSON.stringify(data.user));
+      }
+
+      router.push("/dashboard");
     } catch (err) {
       setError("Something went wrong. Please check your network connection.");
     } finally {

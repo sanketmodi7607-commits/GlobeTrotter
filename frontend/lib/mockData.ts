@@ -58,34 +58,48 @@ export const destinations = [
   },
 ];
 
+export function getUserTripStorageKey(): string {
+  if (typeof window === "undefined") return "globetrotter_trips";
+  try {
+    const userStr = localStorage.getItem("globetrotter_user");
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      if (user?.email) {
+        return `globetrotter_trips_${user.email.toLowerCase().trim()}`;
+      }
+      if (user?.id) {
+        return `globetrotter_trips_uid_${user.id}`;
+      }
+    }
+  } catch {
+    // fallback
+  }
+  return "globetrotter_trips_guest";
+}
+
 export function getTrips(): Trip[] {
   if (typeof window === "undefined") {
-    return defaultTrips;
+    return [];
   }
 
-  const stored = localStorage.getItem("globetrotter_trips");
+  const key = getUserTripStorageKey();
+  const stored = localStorage.getItem(key);
 
   if (!stored) {
-    localStorage.setItem(
-      "globetrotter_trips",
-      JSON.stringify(defaultTrips)
-    );
-
-    return defaultTrips;
+    return [];
   }
 
   try {
     return JSON.parse(stored);
   } catch {
-    return defaultTrips;
+    return [];
   }
 }
 
 export function saveTrips(trips: Trip[]) {
-  localStorage.setItem(
-    "globetrotter_trips",
-    JSON.stringify(trips)
-  );
+  if (typeof window === "undefined") return;
+  const key = getUserTripStorageKey();
+  localStorage.setItem(key, JSON.stringify(trips));
 }
 
 export function updateTrip(updatedTrip: Trip): void {

@@ -36,9 +36,6 @@ export default function Dashboard() {
       }
     }
 
-    // Trip creation currently persists client-side. Reading from the same store
-    // keeps the dashboard, My Trips, and trip details in sync until PostgreSQL
-    // credentials are configured.
     setTrips(getTrips());
     setDestinations(featuredDestinations);
     setLoading(false);
@@ -64,15 +61,6 @@ export default function Dashboard() {
     breakdownAll.food += s.breakdown.food;
     breakdownAll.activities += s.breakdown.activities;
     breakdownAll.miscellaneous += s.breakdown.miscellaneous;
-  }
-
-  // Provide default mockup fallback if no expenses added yet
-  if (totalSpentAcrossAll === 0 && totalBudgetAcrossAll > 0) {
-    totalSpentAcrossAll = Math.round(totalBudgetAcrossAll * 0.45);
-    breakdownAll.transport = Math.round(totalSpentAcrossAll * 0.25);
-    breakdownAll.accommodation = Math.round(totalSpentAcrossAll * 0.4);
-    breakdownAll.activities = Math.round(totalSpentAcrossAll * 0.2);
-    breakdownAll.food = Math.round(totalSpentAcrossAll * 0.15);
   }
 
   const overallPercent =
@@ -139,35 +127,29 @@ export default function Dashboard() {
               My Trips
             </Link>
             <Link
-              href="/cities"
+              href="/profile"
               className="text-slate-600 hover:text-[#0058bc]"
             >
-              Explore
+              Profile
             </Link>
           </nav>
 
           <div className="flex items-center gap-3">
-            <button className="rounded-full p-2 hover:bg-slate-100">
-              <span className="material-symbols-outlined">
-                notifications
-              </span>
-            </button>
-
             <Link
               href="/profile"
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 rounded-full p-1 transition hover:bg-slate-100"
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0058bc] font-bold text-white">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0058bc] font-bold text-white shadow-sm">
                 {userName.charAt(0).toUpperCase()}
               </div>
-              <span className="hidden font-medium sm:block">
+              <span className="hidden font-medium sm:block text-sm text-[#172033] mr-1">
                 {userName}
               </span>
             </Link>
 
             <button
               onClick={logout}
-              className="hidden text-sm text-slate-500 hover:text-red-500 lg:block"
+              className="hidden text-sm font-medium text-slate-500 hover:text-red-500 lg:block ml-2"
             >
               Logout
             </button>
@@ -214,7 +196,7 @@ export default function Dashboard() {
             icon="location_on"
             label="Cities Explored"
             value={String(
-              new Set(trips.flatMap((t) => t.cities || [])).size || 18
+              new Set(trips.flatMap((t) => t.cities || [])).size
             )}
           />
           <Stat
@@ -222,10 +204,12 @@ export default function Dashboard() {
             label="Travel Days"
             value={String(
               trips.reduce((acc, t) => {
+                if (!t.startDate || !t.endDate) return acc;
                 const s = new Date(t.startDate).getTime();
                 const e = new Date(t.endDate).getTime();
+                if (isNaN(s) || isNaN(e)) return acc;
                 return acc + Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1);
-              }, 0) || 46
+              }, 0)
             )}
           />
           <Stat
@@ -462,8 +446,7 @@ export default function Dashboard() {
 
           <div className="mt-6 grid gap-6 md:grid-cols-3">
             {destinations.map((destination) => (
-              <Link
-                href="/cities"
+              <div
                 key={destination.name}
                 className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-1 hover:shadow-xl"
               >
@@ -482,7 +465,7 @@ export default function Dashboard() {
                     {destination.country}
                   </p>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         </section>

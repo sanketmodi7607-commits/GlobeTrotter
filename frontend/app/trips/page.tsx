@@ -55,7 +55,7 @@ export default function TripsPage() {
           <div>
             <h1 className="text-3xl font-bold">
               My Trips
-            </h1>
+              </h1>
 
             <p className="mt-1 text-gray-600">
               Manage and explore your travel plans.
