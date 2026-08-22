@@ -1,251 +1,173 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { getTrips, saveTrips } from "../../../lib/mockData";
-import PlaceAutocomplete from "../../components/PlaceAutocomplete";
-
-// This is the canonical "new trip" page under the /trips/ route.
-// All new features and internal links use /trips/new.
-// The old /trip/new page remains untouched.
-
-const COVER_IMAGES = [
-  "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
-];
 
 export default function NewTripPage() {
   const router = useRouter();
 
-  const [name, setName] = useState("");
+  const [title, setTitle] = useState("");
+  const [destination, setDestination] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [description, setDescription] = useState("");
-  const [budget, setBudget] = useState("");
-  const [cities, setCities] = useState("");
-  const [error, setError] = useState("");
+
   const [loading, setLoading] = useState(false);
-  const [coverImage, setCoverImage] = useState("");
+  const [error, setError] = useState("");
 
-  const chooseCoverPhoto = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setError("Please choose an image file for the cover photo.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setCoverImage(String(reader.result));
-    reader.readAsDataURL(file);
-  };
-
-  const createTrip = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+
     setError("");
 
-    if (!name.trim()) {
-      setError("Please enter a trip name.");
-      return;
-    }
-    if (!startDate || !endDate) {
-      setError("Please enter the travel dates.");
-      return;
-    }
-    if (new Date(endDate) < new Date(startDate)) {
-      setError("End date cannot be before the start date.");
+    if (!title || !destination || !startDate || !endDate) {
+      setError("Please fill in all required fields.");
       return;
     }
 
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    // Pick a random cover image for variety
-    const defaultCoverImage =
-      COVER_IMAGES[Math.floor(Math.random() * COVER_IMAGES.length)];
+      const res = await fetch("/api/trips", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title,
+          destination,
+          startDate,
+          endDate,
+          description,
+        }),
+      });
 
-    const newTrip = {
-      id: Date.now().toString(),
-      name: name.trim(),
-      startDate,
-      endDate,
-      description: description.trim(),
-      cities: cities
-        .split(",")
-        .map((city) => city.trim())
-        .filter(Boolean),
-      budget: Number(budget) || 0,
-      status: "upcoming" as const,
-      coverImage: coverImage || defaultCoverImage,
-    };
+      const data = await res.json();
 
-    const trips = getTrips();
-    saveTrips([newTrip, ...trips]);
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to create trip");
+      }
 
-    router.push(`/trips/${newTrip.id}`);
+      // API can return either trip or id
+      const tripId = data.trip?.id || data.trip?._id || data.id;
+
+      if (!tripId) {
+        throw new Error("Trip created but no trip ID was returned.");
+      }
+
+      router.push(`/trips/${tripId}`);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Something went wrong."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <main className="min-h-screen bg-[#f7f9fc]">
-      {/* Header */}
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex h-20 max-w-5xl items-center justify-between px-6">
-          <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#0058bc] to-[#00b4d8] text-white">
-              <span className="material-symbols-outlined">flight_takeoff</span>
-            </div>
-            <span className="text-xl font-bold text-[#0058bc]">
-              GlobeTrotter
-            </span>
-          </Link>
+    <main className="min-h-screen bg-gray-50 p-6">
+      <div className="mx-auto max-w-2xl rounded-xl bg-white p-6 shadow-sm">
+        <h1 className="mb-2 text-3xl font-bold">Create New Trip</h1>
 
-          <Link
-            href="/dashboard"
-            className="text-sm font-medium text-slate-500 hover:text-[#0058bc] transition"
-          >
-            Cancel
-          </Link>
-        </div>
-      </header>
+        <p className="mb-6 text-gray-600">
+          Plan your next trip and build your itinerary.
+        </p>
 
-      {/* Form */}
-      <div className="mx-auto max-w-3xl px-6 py-12">
-        <div className="mb-8">
-          <p className="text-sm font-semibold uppercase tracking-widest text-[#0058bc]">
-            New adventure
-          </p>
-          <h1 className="mt-2 text-4xl font-bold text-[#172033]">
-            Plan a new trip
-          </h1>
-          <p className="mt-3 text-slate-500">
-            Start with the basics — you can add your itinerary and expenses
-            after creating the trip.
-          </p>
-        </div>
+        {error && (
+          <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+            {error}
+          </div>
+        )}
 
-        <form
-          onSubmit={createTrip}
-          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 space-y-6"
-        >
-          {/* Trip Name */}
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="mb-2 block text-sm font-semibold text-[#172033]">
-              Trip name *
+            <label className="mb-1 block font-medium">
+              Trip Title *
             </label>
+
             <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Europe Summer 2026"
-              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0058bc] focus:bg-white focus:ring-2 focus:ring-[#0058bc]/10"
+              type="text"
+              placeholder="My Europe Trip"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full rounded-lg border p-3 outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
-          {/* Dates */}
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block font-medium">
+              Destination *
+            </label>
+
+            <input
+              type="text"
+              placeholder="Paris, France"
+              value={destination}
+              onChange={(e) => setDestination(e.target.value)}
+              className="w-full rounded-lg border p-3 outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-2 block text-sm font-semibold text-[#172033]">
-                Start date *
+              <label className="mb-1 block font-medium">
+                Start Date *
               </label>
+
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#0058bc]"
+                className="w-full rounded-lg border p-3"
               />
             </div>
+
             <div>
-              <label className="mb-2 block text-sm font-semibold text-[#172033]">
-                End date *
+              <label className="mb-1 block font-medium">
+                End Date *
               </label>
+
               <input
                 type="date"
                 value={endDate}
-                min={startDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#0058bc]"
+                className="w-full rounded-lg border p-3"
               />
             </div>
           </div>
 
-          {/* Cities */}
           <div>
-            <label className="mb-2 block text-sm font-semibold text-[#172033]">
-              Destinations
-            </label>
-            <PlaceAutocomplete
-              value={cities}
-              onChange={setCities}
-            />
-            <p className="mt-1.5 text-xs text-slate-400">
-              Search and select a city, village, landmark, or region. Add more places by typing after a comma.
-            </p>
-          </div>
-
-          {/* Budget */}
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-[#172033]">
-              Estimated budget
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-medium text-slate-500">
-                $
-              </span>
-              <input
-                type="number"
-                min="0"
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                placeholder="2500"
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 py-3 pl-8 pr-4 text-sm outline-none focus:border-[#0058bc]"
-              />
-            </div>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-[#172033]">
+            <label className="mb-1 block font-medium">
               Description
             </label>
+
             <textarea
+              placeholder="Describe your trip..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What do you want to experience on this trip?"
               rows={4}
-              className="w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#0058bc]"
+              className="w-full resize-none rounded-lg border p-3 outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-[#172033]">
-              Cover photo <span className="font-normal text-slate-400">(optional)</span>
-            </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={chooseCoverPhoto}
-              className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-[#e8f0ff] file:px-4 file:py-2 file:font-semibold file:text-[#0058bc]"
-            />
-            {coverImage && <img src={coverImage} alt="Selected cover preview" className="mt-3 h-32 w-full rounded-xl object-cover" />}
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="rounded-lg border px-5 py-3 font-medium"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 rounded-lg bg-blue-600 px-5 py-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? "Creating Trip..." : "Create Trip"}
+            </button>
           </div>
-
-          {error && (
-            <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0058bc] to-[#00b4d8] px-6 py-4 font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? "Creating..." : "Create Trip"}
-            {!loading && (
-              <span className="material-symbols-outlined">arrow_forward</span>
-            )}
-          </button>
         </form>
       </div>
     </main>
