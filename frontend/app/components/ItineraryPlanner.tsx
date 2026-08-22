@@ -1,422 +1,278 @@
-"use client";
+// ============================================================
+// ITINERARY TYPES & STORAGE HELPERS
+// Replace these functions with API calls when the backend is ready.
+// ============================================================
 
-import { useState, useEffect } from "react";
-import {
-  getItinerary,
-  addActivity,
-  deleteActivity,
-  detectConflicts,
-  groupActivitiesByDay,
-  ACTIVITY_CATEGORY_LABELS,
-  ACTIVITY_CATEGORY_ICONS,
-  ACTIVITY_CATEGORY_COLORS,
-  type Activity,
-  type ActivityCategory,
-  type ConflictWarning,
-} from "../../lib/itinerary";
+export type ActivityCategory =
+  | "sightseeing"
+  | "food"
+  | "transport"
+  | "accommodation"
+  | "adventure"
+  | "culture"
+  | "shopping"
+  | "other";
 
-interface ItineraryPlannerProps {
+export interface Activity {
+  id: string;
   tripId: string;
-  tripStartDate: string;
-  tripEndDate: string;
+  name: string;
+  city: string;
+  date: string; // ISO date YYYY-MM-DD
+  startTime: string; // HH:MM (24-hour)
+  endTime: string; // HH:MM (24-hour)
+  category: ActivityCategory;
+  notes?: string;
+  createdAt: string;
 }
 
-const CATEGORIES = Object.keys(ACTIVITY_CATEGORY_LABELS) as ActivityCategory[];
+export interface ConflictWarning {
+  activityA: Activity;
+  activityB: Activity;
+  message: string;
+}
 
-export default function ItineraryPlanner({
-  tripId,
-  tripStartDate,
-  tripEndDate,
-}: ItineraryPlannerProps) {
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [conflicts, setConflicts] = useState<ConflictWarning[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [formError, setFormError] = useState("");
-  const [form, setForm] = useState({
-    name: "",
-    city: "",
-    date: tripStartDate || new Date().toISOString().split("T")[0],
-    startTime: "09:00",
-    endTime: "10:00",
-    category: "sightseeing" as ActivityCategory,
-    notes: "",
+const STORAGE_KEY = "globetrotter_itineraries";
+
+// -------------------------------------------------------
+// Storage helpers
+// -------------------------------------------------------
+
+function getAllItineraries(): Record<string, Activity[]> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveAllItineraries(data: Record<string, Activity[]>): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+// -------------------------------------------------------
+// Public API (mirrors future backend API shape)
+// -------------------------------------------------------
+
+export function getItinerary(tripId: string): Activity[] {
+  const all = getAllItineraries();
+  return all[tripId] ?? [];
+}
+
+export function saveItinerary(tripId: string, activities: Activity[]): void {
+  const all = getAllItineraries();
+  all[tripId] = activities;
+  saveAllItineraries(all);
+}
+
+export function addActivity(
+  activity: Omit<Activity, "id" | "createdAt">
+): Activity {
+  const newActivity: Activity = {
+    ...activity,
+    id: Date.now().toString(),
+    createdAt: new Date().toISOString(),
+  };
+  const existing = getItinerary(activity.tripId);
+  const sorted = [...existing, newActivity].sort(
+    (a, b) =>
+      new Date(`${a.date}T${a.startTime}`).getTime() -
+      new Date(`${b.date}T${b.startTime}`).getTime()
+  );
+  saveItinerary(activity.tripId, sorted);
+  return newActivity;
+}
+
+export function deleteActivity(tripId: string, activityId: string): void {
+  const existing = getItinerary(tripId);
+  saveItinerary(
+    tripId,
+    existing.filter((a) => a.id !== activityId)
+  );
+}
+
+// -------------------------------------------------------
+// Conflict detection
+// -------------------------------------------------------
+
+/** Convert "HH:MM" to minutes since midnight */
+function toMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+export function detectConflicts(activities: Activity[]): ConflictWarning[] {
+  const warnings: ConflictWarning[] = [];
+
+  for (let i = 0; i < activities.length; i++) {
+    const a = activities[i];
+
+    // End before start
+    if (toMinutes(a.endTime) <= toMinutes(a.startTime)) {
+      warnings.push({
+        activityA: a,
+        activityB: a,
+        message: `"${a.name}" has an end time before or equal to its start time.`,
+      });
+      continue;
+    }
+
+    for (let j = i + 1; j < activities.length; j++) {
+      const b = activities[j];
+
+      // Only compare activities on the same date
+      if (a.date !== b.date) continue;
+
+      const aStart = toMinutes(a.startTime);
+      const aEnd = toMinutes(a.endTime);
+      const bStart = toMinutes(b.startTime);
+      const bEnd = toMinutes(b.endTime);
+
+      // Overlap check: A starts before B ends AND B starts before A ends
+      if (aStart < bEnd && bStart < aEnd) {
+        warnings.push({
+          activityA: a,
+          activityB: b,
+          message: `"${a.name}" overlaps with "${b.name}" (${a.startTime}–${a.endTime} vs ${b.startTime}–${b.endTime}).`,
+        });
+      }
+    }
+  }
+
+  return warnings;
+}
+
+// -------------------------------------------------------
+// Grouping helper
+// -------------------------------------------------------
+
+export interface DayGroup {
+  date: string; // YYYY-MM-DD
+  label: string; // e.g. "Day 1 — Paris, Rome"
+  activities: Activity[];
+}
+
+export function groupActivitiesByDay(
+  activities: Activity[],
+  tripStartDate?: string
+): DayGroup[] {
+  const map = new Map<string, Activity[]>();
+
+  for (const activity of activities) {
+    const existing = map.get(activity.date) ?? [];
+    map.set(activity.date, [...existing, activity]);
+  }
+
+  const sortedDates = Array.from(map.keys()).sort();
+
+  return sortedDates.map((date, index) => {
+    const dayActivities = map.get(date)!.sort(
+      (a, b) => toMinutes(a.startTime) - toMinutes(b.startTime)
+    );
+
+    let dayNumber = index + 1;
+    if (tripStartDate) {
+      const start = new Date(tripStartDate);
+      const current = new Date(date);
+      const diff = Math.round(
+        (current.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      dayNumber = diff + 1;
+    }
+
+    const cities = [...new Set(dayActivities.map((a) => a.city))];
+    const formattedDate = new Date(date + "T00:00:00").toLocaleDateString(
+      "en-US",
+      { weekday: "long", month: "short", day: "numeric" }
+    );
+
+    return {
+      date,
+      label: `Day ${dayNumber} — ${cities.join(", ")} · ${formattedDate}`,
+      activities: dayActivities,
+    };
   });
+}
 
-  const refresh = () => {
-    const data = getItinerary(tripId);
-    setActivities(data);
-    setConflicts(detectConflicts(data));
-  };
+// -------------------------------------------------------
+// Category metadata
+// -------------------------------------------------------
 
-  useEffect(() => {
-    refresh();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tripId]);
+export const ACTIVITY_CATEGORY_LABELS: Record<ActivityCategory, string> = {
+  sightseeing: "Sightseeing",
+  food: "Food & Dining",
+  transport: "Transport",
+  accommodation: "Check-in/out",
+  adventure: "Adventure",
+  culture: "Culture",
+  shopping: "Shopping",
+  other: "Other",
+};
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError("");
+export const ACTIVITY_CATEGORY_ICONS: Record<ActivityCategory, string> = {
+  sightseeing: "📷",
+  food: "🍽️",
+  transport: "🚕",
+  accommodation: "🏨",
+  adventure: "🥾",
+  culture: "🏛️",
+  shopping: "🛍️",
+  other: "📦",
+};
 
-    if (!form.name.trim()) {
-      setFormError("Please enter an activity name.");
-      return;
-    }
-    if (!form.city.trim()) {
-      setFormError("Please enter a city.");
-      return;
-    }
-    if (!form.date) {
-      setFormError("Please select a date.");
-      return;
-    }
-    if (!form.startTime || !form.endTime) {
-      setFormError("Please enter start and end times.");
-      return;
-    }
-    if (form.endTime <= form.startTime) {
-      setFormError("End time must be after start time.");
-      return;
-    }
+/**
+ * Human-readable "icon + label" for an activity category, safe to render
+ * directly. Falls back to a formatted version of the raw value for any
+ * category not in ACTIVITY_CATEGORY_LABELS, so internal identifiers are
+ * never shown to the user.
+ */
+export function formatActivityCategory(category: string): string {
+  const known = category as ActivityCategory;
 
-    addActivity({
-      tripId,
-      name: form.name.trim(),
-      city: form.city.trim(),
-      date: form.date,
-      startTime: form.startTime,
-      endTime: form.endTime,
-      category: form.category,
-      notes: form.notes.trim() || undefined,
-    });
+  if (ACTIVITY_CATEGORY_LABELS[known] && ACTIVITY_CATEGORY_ICONS[known]) {
+    return `${ACTIVITY_CATEGORY_ICONS[known]} ${ACTIVITY_CATEGORY_LABELS[known]}`;
+  }
 
-    refresh();
-    setShowForm(false);
-    setForm({
-      name: "",
-      city: "",
-      date: tripStartDate || new Date().toISOString().split("T")[0],
-      startTime: "09:00",
-      endTime: "10:00",
-      category: "sightseeing",
-      notes: "",
-    });
-  };
+  const label = category
+    .split("_")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 
-  const handleDelete = (activityId: string) => {
-    deleteActivity(tripId, activityId);
-    refresh();
-  };
+  return `📦 ${label || "Other"}`;
+}
 
-  const dayGroups = groupActivitiesByDay(activities, tripStartDate);
+export const ACTIVITY_CATEGORY_COLORS: Record<ActivityCategory, string> = {
+  sightseeing: "#0058bc",
+  food: "#f59e0b",
+  transport: "#6b7280",
+  accommodation: "#8b5cf6",
+  adventure: "#10b981",
+  culture: "#ef4444",
+  shopping: "#ec4899",
+  other: "#9ca3af",
+};
 
-  // IDs of activities involved in any conflict
-  const conflictIds = new Set(
-    conflicts.flatMap((c) =>
-      c.activityA.id === c.activityB.id
-        ? [c.activityA.id]
-        : [c.activityA.id, c.activityB.id]
-    )
-  );
+// -------------------------------------------------------
+// Next activity helper (used by dashboard)
+// -------------------------------------------------------
 
-  return (
-    <div className="space-y-6">
-      {/* Conflict Warnings */}
-      {conflicts.length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="material-symbols-outlined text-amber-600">warning</span>
-            <h3 className="font-bold text-amber-800">
-              Schedule Conflicts ({conflicts.length})
-            </h3>
-          </div>
-          {conflicts.map((conflict, i) => (
-            <div
-              key={i}
-              className="flex items-start gap-2 text-sm text-amber-800 bg-amber-100 rounded-lg px-3 py-2"
-            >
-              <span className="material-symbols-outlined text-base mt-0.5 shrink-0">
-                error_outline
-              </span>
-              <p>{conflict.message}</p>
-            </div>
-          ))}
-        </div>
-      )}
+export function getNextActivity(tripId: string): Activity | null {
+  const activities = getItinerary(tripId);
+  const now = new Date();
 
-      {/* Add Activity Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#0058bc] to-[#00b4d8] px-5 py-2.5 font-semibold text-white text-sm transition hover:opacity-90"
-        >
-          <span className="material-symbols-outlined text-sm">add</span>
-          Add Activity
-        </button>
-      </div>
+  const upcoming = activities
+    .filter((a) => {
+      const activityTime = new Date(`${a.date}T${a.startTime}`);
+      return activityTime > now;
+    })
+    .sort(
+      (a, b) =>
+        new Date(`${a.date}T${a.startTime}`).getTime() -
+        new Date(`${b.date}T${b.startTime}`).getTime()
+    );
 
-      {/* Add Activity Form */}
-      {showForm && (
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4"
-        >
-          <h3 className="font-bold text-[#172033]">New Activity</h3>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                Activity Name *
-              </label>
-              <input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. Eiffel Tower visit"
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#0058bc] focus:ring-1 focus:ring-[#0058bc]/20"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                City *
-              </label>
-              <input
-                value={form.city}
-                onChange={(e) => setForm({ ...form, city: e.target.value })}
-                placeholder="e.g. Paris"
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#0058bc]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                Date *
-              </label>
-              <input
-                type="date"
-                value={form.date}
-                min={tripStartDate}
-                max={tripEndDate}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#0058bc]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                Category
-              </label>
-              <select
-                value={form.category}
-                onChange={(e) =>
-                  setForm({ ...form, category: e.target.value as ActivityCategory })
-                }
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#0058bc]"
-              >
-                {CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {ACTIVITY_CATEGORY_LABELS[cat]}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                Start Time *
-              </label>
-              <input
-                type="time"
-                value={form.startTime}
-                onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#0058bc]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                End Time *
-              </label>
-              <input
-                type="time"
-                value={form.endTime}
-                onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#0058bc]"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
-              Notes (optional)
-            </label>
-            <textarea
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              placeholder="Any extra details..."
-              rows={2}
-              className="w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#0058bc]"
-            />
-          </div>
-
-          {formError && (
-            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-600">
-              {formError}
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              className="rounded-xl bg-[#0058bc] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#004ca0] transition"
-            >
-              Save Activity
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowForm(false);
-                setFormError("");
-              }}
-              className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Timeline */}
-      {dayGroups.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
-          <span className="material-symbols-outlined text-5xl text-slate-300">
-            event_note
-          </span>
-          <h3 className="mt-4 text-xl font-bold text-[#172033]">
-            No activities yet
-          </h3>
-          <p className="mt-2 text-slate-500 text-sm">
-            Start building your itinerary by adding your first activity.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-8">
-          {dayGroups.map((day) => (
-            <div key={day.date}>
-              {/* Day Header */}
-              <div className="flex items-center gap-3 mb-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#0058bc] text-white">
-                  <span className="material-symbols-outlined text-sm">
-                    calendar_today
-                  </span>
-                </div>
-                <div>
-                  <p className="font-bold text-[#172033] text-sm uppercase tracking-wide">
-                    {day.label}
-                  </p>
-                </div>
-              </div>
-
-              {/* Activity Cards (Timeline) */}
-              <div className="relative ml-4 pl-6 border-l-2 border-slate-200 space-y-3">
-                {day.activities.map((activity) => {
-                  const color = ACTIVITY_CATEGORY_COLORS[activity.category];
-                  const isConflict = conflictIds.has(activity.id);
-
-                  return (
-                    <div key={activity.id} className="relative group">
-                      {/* Timeline dot */}
-                      <div
-                        className="absolute -left-[25px] top-4 h-4 w-4 rounded-full border-2 border-white"
-                        style={{ backgroundColor: color }}
-                      />
-
-                      <div
-                        className={`rounded-xl border bg-white p-4 transition hover:shadow-md ${
-                          isConflict
-                            ? "border-amber-300 bg-amber-50"
-                            : "border-slate-200"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-start gap-3 min-w-0">
-                            <div
-                              className="flex h-8 w-8 shrink-0 mt-0.5 items-center justify-center rounded-lg"
-                              style={{ backgroundColor: `${color}18` }}
-                            >
-                              <span
-                                className="material-symbols-outlined text-sm"
-                                style={{ color }}
-                              >
-                                {ACTIVITY_CATEGORY_ICONS[activity.category]}
-                              </span>
-                            </div>
-
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="font-bold text-[#172033]">
-                                  {activity.name}
-                                </p>
-                                {isConflict && (
-                                  <span className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                                    <span className="material-symbols-outlined text-xs">
-                                      warning
-                                    </span>
-                                    Conflict
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                                <span className="flex items-center gap-1">
-                                  <span className="material-symbols-outlined text-xs">
-                                    schedule
-                                  </span>
-                                  {activity.startTime} – {activity.endTime}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <span className="material-symbols-outlined text-xs">
-                                    location_on
-                                  </span>
-                                  {activity.city}
-                                </span>
-                                <span
-                                  className="rounded-full px-2 py-0.5 text-xs font-medium"
-                                  style={{
-                                    backgroundColor: `${color}15`,
-                                    color,
-                                  }}
-                                >
-                                  {ACTIVITY_CATEGORY_LABELS[activity.category]}
-                                </span>
-                              </div>
-
-                              {activity.notes && (
-                                <p className="mt-1.5 text-xs text-slate-400 italic">
-                                  {activity.notes}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => handleDelete(activity.id)}
-                            className="opacity-0 group-hover:opacity-100 shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 transition"
-                            title="Delete activity"
-                          >
-                            <span className="material-symbols-outlined text-sm">
-                              delete
-                            </span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  return upcoming[0] ?? null;
 }
