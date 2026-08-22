@@ -34,6 +34,20 @@ select {
   color: #172033;
 }
 
+.field {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  padding: 0.75rem 1rem;
+  outline: none;
+}
+
+.field:focus {
+  border-color: #0058bc;
+  box-shadow: 0 0 0 2px rgb(0 88 188 / 10%);
+}
+
 /* The dashboard uses Google's Material Symbols by name (for example,
    `luggage` and `notifications`). Without this font the names render as
    ordinary text instead of icons. */

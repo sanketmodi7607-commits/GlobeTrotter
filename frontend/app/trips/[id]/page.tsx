@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getTrips, type Trip } from "../../../lib/mockData";
+import ShareModal from "../../components/ShareModal";
 
 type Expense = {
   id: string;
@@ -48,6 +49,7 @@ export default function TripDetailsPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
 
   const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const [expenseName, setExpenseName] = useState("");
   const [expenseAmount, setExpenseAmount] = useState("");
@@ -250,6 +252,14 @@ export default function TripDetailsPage() {
         >
           ← Back to My Trips
         </Link>
+
+        <button
+          type="button"
+          onClick={() => setShowShareModal(true)}
+          className="float-right rounded-xl border border-[#0058bc] px-4 py-2 text-sm font-semibold text-[#0058bc] hover:bg-[#e8f0ff]"
+        >
+          Share trip
+        </button>
 
         {/* HERO */}
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -691,6 +701,7 @@ export default function TripDetailsPage() {
         <div className="h-10" />
 
       </div>
+      {showShareModal && <ShareModal trip={trip} onClose={() => setShowShareModal(false)} />}
     </main>
   );
 }

@@ -88,6 +88,14 @@ export function saveTrips(trips: Trip[]) {
   );
 }
 
+export function updateTrip(updatedTrip: Trip): void {
+  saveTrips(getTrips().map((trip) => (trip.id === updatedTrip.id ? updatedTrip : trip)));
+}
+
+export function deleteTrip(tripId: string): void {
+  saveTrips(getTrips().filter((trip) => trip.id !== tripId));
+}
+
 export function getTrip(id: string) {
   return getTrips().find((trip) => trip.id === id);
 }
