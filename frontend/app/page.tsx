@@ -13,7 +13,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
 
-  const handleLogin = (e: FormEvent<HTMLFormElement>) => {
+ const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
 
@@ -27,25 +27,40 @@ export default function LoginPage() {
       return;
     }
 
-    // Frontend-only login for now.
-    // This will be replaced by the backend API later.
-    localStorage.setItem("globetrotter_logged_in", "true");
+    try {
+      // 1. Send the email and password to your new backend API
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-    localStorage.setItem(
-      "globetrotter_user",
-      JSON.stringify({
-        email,
-        name: email.split("@")[0],
-      })
-    );
+      const data = await response.json();
 
-    if (rememberMe) {
-      localStorage.setItem("globetrotter_remember", "true");
-    } else {
-      localStorage.removeItem("globetrotter_remember");
+      // 2. Catch invalid passwords or unregistered emails
+      if (!response.ok) {
+        setError(data.error || "Login failed. Please check your credentials.");
+        return;
+      }
+
+      // 3. Save the REAL user data returned from the database
+      localStorage.setItem("globetrotter_logged_in", "true");
+      localStorage.setItem("globetrotter_user", JSON.stringify(data.user));
+
+      if (rememberMe) {
+        localStorage.setItem("globetrotter_remember", "true");
+      } else {
+        localStorage.removeItem("globetrotter_remember");
+      }
+
+      // 4. Send them to the dashboard!
+      router.push("/dashboard");
+
+    } catch (err) {
+      setError("Something went wrong. Please check your connection.");
     }
-
-    router.push("/dashboard");
   };
 
   return (
