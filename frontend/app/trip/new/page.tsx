@@ -1,223 +1,246 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getTrips, saveTrips } from "../../../lib/mockData";
 
-export default function NewTrip() {
+export default function NewTripPage() {
   const router = useRouter();
 
+  // Form state hooks
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [description, setDescription] = useState("");
   const [budget, setBudget] = useState("");
-  const [cities, setCities] = useState("");
+  const [coverImage, setCoverImage] = useState("");
+  const [selectedCities, setSelectedCities] = useState<string[]>(["Ahmedabad"]);
+  const [cityInput, setCityInput] = useState("");
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const createTrip = (e: FormEvent) => {
+  const handleAddCity = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (cityInput.trim() && !selectedCities.includes(cityInput.trim())) {
+      setSelectedCities([...selectedCities, cityInput.trim()]);
+      setCityInput("");
+    }
+  };
+
+  const handleRemoveCity = (cityToRemove: string) => {
+    setSelectedCities(selectedCities.filter((c) => c !== cityToRemove));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (!name || !startDate || !endDate) {
-      setError("Please enter the trip name and travel dates.");
+    const savedUser = localStorage.getItem("globetrotter_user");
+    let userEmail = "";
+    if (savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+        userEmail = user.email;
+      } catch {
+        userEmail = "";
+      }
+    }
+
+    if (!userEmail) {
+      setError("User session not found. Please log in again.");
       return;
     }
 
-    if (new Date(endDate) < new Date(startDate)) {
-      setError("End date cannot be before the start date.");
-      return;
-    }
+    setLoading(true);
 
-    const newTrip = {
-      id: Date.now().toString(),
+    const tripPayload = {
+      email: userEmail,
       name,
+      description,
       startDate,
       endDate,
-      description,
-      cities: cities
-        .split(",")
-        .map((city) => city.trim())
-        .filter(Boolean),
       budget: Number(budget) || 0,
-      status: "upcoming" as const,
-      coverImage:
-        "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80",
+      coverImage: coverImage || "https://images.unsplash.com/photo-1488646953014-85cb44e25828",
+      cities: selectedCities,
     };
 
-    const trips = getTrips();
+    try {
+      const response = await fetch("/api/trips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(tripPayload),
+      });
 
-    saveTrips([newTrip, ...trips]);
-
-    router.push("/dashboard");
+      if (response.ok) {
+        router.push("/dashboard");
+      } else {
+        const data = await response.json();
+        setError(data.error || "Failed to save trip to database");
+      }
+    } catch (err) {
+      console.error("Error connecting to server:", err);
+      setError("An unexpected error occurred. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <main className="min-h-screen bg-[#f7f9fc]">
-
-      <header className="border-b border-slate-200 bg-white">
+    <main className="min-h-screen bg-[#f7f9fc] text-[#172033] pb-16">
+      {/* NAVBAR */}
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-20 max-w-5xl items-center justify-between px-6">
-
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-3"
-          >
+          <Link href="/dashboard" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#0058bc] to-[#00b4d8] text-white">
-              <span className="material-symbols-outlined">
-                flight_takeoff
-              </span>
+              <span className="material-symbols-outlined">flight_takeoff</span>
             </div>
-
-            <span className="text-xl font-bold text-[#0058bc]">
-              GlobeTrotter
-            </span>
+            <span className="text-xl font-bold text-[#0058bc]">GlobeTrotter</span>
           </Link>
-
-          <Link
-            href="/dashboard"
-            className="text-sm font-medium text-slate-500 hover:text-[#0058bc]"
-          >
-            Cancel
+          <Link href="/dashboard" className="text-sm font-semibold text-slate-600 hover:text-[#0058bc]">
+            Cancel & Return
           </Link>
         </div>
       </header>
 
-      <div className="mx-auto max-w-3xl px-6 py-12">
-
+      <div className="mx-auto max-w-3xl px-6 pt-10">
         <div className="mb-8">
-          <p className="text-sm font-semibold uppercase tracking-widest text-[#0058bc]">
-            New adventure
-          </p>
-
-          <h1 className="mt-2 text-4xl font-bold">
-            Create a new trip
-          </h1>
-
-          <p className="mt-3 text-slate-500">
-            Tell us about your next adventure. You can build the
-            itinerary later.
+          <h1 className="text-3xl font-bold">Plan a New Adventure</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Fill in the details below to create and save your trip to the database.
           </p>
         </div>
 
-        <form
-          onSubmit={createTrip}
-          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
-        >
+        {error && (
+          <div className="mb-6 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-600">
+            {error}
+          </div>
+        )}
 
-          <div className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+          {/* Trip Name */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Trip Name *</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g., Summer in Europe"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-[#0058bc] focus:outline-none"
+            />
+          </div>
 
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Description</label>
+            <textarea
+              rows={3}
+              placeholder="What's the vibe of this trip?"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-[#0058bc] focus:outline-none"
+            />
+          </div>
+
+          {/* Dates Grid */}
+          <div className="grid gap-6 sm:grid-cols-2">
             <div>
-              <label className="mb-2 block text-sm font-semibold">
-                Trip name
-              </label>
-
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Start Date</label>
               <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Europe Summer 2026"
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-[#0058bc] focus:ring-2 focus:ring-[#0058bc]/10"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-[#0058bc] focus:outline-none"
               />
             </div>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold">
-                  Start date
-                </label>
-
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-[#0058bc]"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold">
-                  End date
-                </label>
-
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-[#0058bc]"
-                />
-              </div>
-
-            </div>
-
             <div>
-              <label className="mb-2 block text-sm font-semibold">
-                Cities
-              </label>
-
+              <label className="block text-sm font-semibold text-slate-700 mb-1">End Date</label>
               <input
-                value={cities}
-                onChange={(e) => setCities(e.target.value)}
-                placeholder="Paris, Rome, Barcelona"
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-[#0058bc]"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-[#0058bc] focus:outline-none"
               />
-
-              <p className="mt-2 text-xs text-slate-500">
-                Separate multiple cities with commas.
-              </p>
             </div>
+          </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-semibold">
-                Estimated budget
-              </label>
+          {/* Budget */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Total Budget ($)</label>
+            <input
+              type="number"
+              placeholder="e.g., 2500"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-[#0058bc] focus:outline-none"
+            />
+          </div>
 
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
-                  $
+          {/* Cover Image URL */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Cover Image URL</label>
+            <input
+              type="url"
+              placeholder="https://images.unsplash.com/..."
+              value={coverImage}
+              onChange={(e) => setCoverImage(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-[#0058bc] focus:outline-none"
+            />
+          </div>
+
+          {/* Cities Section */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Destination Cities</label>
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                placeholder="Add a city (e.g., Paris)"
+                value={cityInput}
+                onChange={(e) => setCityInput(e.target.value)}
+                className="flex-1 rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-[#0058bc] focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleAddCity}
+                className="rounded-xl bg-slate-100 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+              >
+                Add City
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {selectedCities.map((city) => (
+                <span
+                  key={city}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-[#e8f0ff] px-3.5 py-1 text-xs font-semibold text-[#0058bc]"
+                >
+                  {city}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveCity(city)}
+                    className="hover:text-red-500 font-bold ml-1"
+                  >
+                    ×
+                  </button>
                 </span>
-
-                <input
-                  type="number"
-                  value={budget}
-                  onChange={(e) => setBudget(e.target.value)}
-                  placeholder="2500"
-                  className="w-full rounded-xl border border-slate-300 py-3 pl-8 pr-4 outline-none focus:border-[#0058bc]"
-                />
-              </div>
+              ))}
             </div>
+          </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-semibold">
-                Description
-              </label>
-
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="What do you want to experience on this trip?"
-                rows={5}
-                className="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-[#0058bc]"
-              />
-            </div>
-
-            {error && (
-              <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
-                {error}
-              </div>
-            )}
-
+          {/* Submit Button */}
+          <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+            <Link
+              href="/dashboard"
+              className="rounded-xl px-6 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+            >
+              Cancel
+            </Link>
             <button
               type="submit"
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0058bc] to-[#00b4d8] px-6 py-4 font-semibold text-white transition hover:opacity-90"
+              disabled={loading}
+              className="rounded-xl bg-gradient-to-r from-[#0058bc] to-[#00b4d8] px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-[#0058bc]/20 transition hover:opacity-95 disabled:opacity-50"
             >
-              Create Trip
-
-              <span className="material-symbols-outlined">
-                arrow_forward
-              </span>
+              {loading ? "Saving to Database..." : "Create Trip"}
             </button>
-
           </div>
         </form>
       </div>
