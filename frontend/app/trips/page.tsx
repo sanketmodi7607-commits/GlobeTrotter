@@ -66,15 +66,27 @@ export default function TripsListPage() {
             <Link href="/trips" className="font-semibold text-[#0058bc]">
               My Trips
             </Link>
+            <Link href="/profile" className="text-slate-600 hover:text-[#0058bc]">
+              Profile
+            </Link>
           </nav>
 
-          <Link
-            href="/trips/new"
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#0058bc] to-[#00b4d8] px-5 py-2.5 font-semibold text-white text-sm shadow-lg shadow-[#0058bc]/20 transition hover:-translate-y-0.5"
-          >
-            <span className="material-symbols-outlined text-sm">add</span>
-            New Trip
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/trips/new"
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#0058bc] to-[#00b4d8] px-5 py-2.5 font-semibold text-white text-sm shadow-lg shadow-[#0058bc]/20 transition hover:-translate-y-0.5"
+            >
+              <span className="material-symbols-outlined text-sm">add</span>
+              New Trip
+            </Link>
+            <Link
+              href="/profile"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0058bc] font-bold text-white shadow-sm"
+              title="Profile"
+            >
+              <span className="material-symbols-outlined text-xl">person</span>
+            </Link>
+          </div>
         </div>
       </header>
 
