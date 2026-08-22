@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getTrips, saveTrips } from "../../../lib/mockData";
+import PlaceAutocomplete from "../../components/PlaceAutocomplete";
 
 // This is the canonical "new trip" page under the /trips/ route.
 // All new features and internal links use /trips/new.
@@ -158,16 +159,14 @@ export default function NewTripPage() {
           {/* Cities */}
           <div>
             <label className="mb-2 block text-sm font-semibold text-[#172033]">
-              Cities
+              Destinations
             </label>
-            <input
+            <PlaceAutocomplete
               value={cities}
-              onChange={(e) => setCities(e.target.value)}
-              placeholder="Paris, Rome, Barcelona"
-              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#0058bc]"
+              onChange={setCities}
             />
             <p className="mt-1.5 text-xs text-slate-400">
-              Separate multiple cities with commas.
+              Search and select a city, village, landmark, or region. Add more places by typing after a comma.
             </p>
           </div>
 
