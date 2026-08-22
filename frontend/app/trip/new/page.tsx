@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getTrips, saveTrips } from "../../../lib/mockData";
+import PlaceAutocomplete from "../../components/PlaceAutocomplete";
 
 export default function NewTrip() {
   const router = useRouter();
@@ -152,18 +153,16 @@ export default function NewTrip() {
 
             <div>
               <label className="mb-2 block text-sm font-semibold">
-                Cities
+                Destinations
               </label>
 
-              <input
+              <PlaceAutocomplete
                 value={cities}
-                onChange={(e) => setCities(e.target.value)}
-                placeholder="Paris, Rome, Barcelona"
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-[#0058bc]"
+                onChange={setCities}
               />
 
               <p className="mt-2 text-xs text-slate-500">
-                Separate multiple cities with commas.
+                Search for a city, village, landmark, or region. Add another place after a comma.
               </p>
             </div>
 

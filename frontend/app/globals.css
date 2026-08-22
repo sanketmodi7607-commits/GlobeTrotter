@@ -26,6 +26,14 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Forms use a light surface even when the device is in dark mode. Keep typed
+   values readable instead of inheriting the light page foreground color. */
+input,
+textarea,
+select {
+  color: #172033;
+}
+
 /* The dashboard uses Google's Material Symbols by name (for example,
    `luggage` and `notifications`). Without this font the names render as
    ordinary text instead of icons. */
