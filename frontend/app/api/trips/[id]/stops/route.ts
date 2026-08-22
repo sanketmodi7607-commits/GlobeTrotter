@@ -5,10 +5,10 @@ import pool from "@/lib/db";
 // GET all stops for a trip
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const tripId = params.id;
+    const { id: tripId } = await params;
 
     const stopsResult = await pool.query(
       `
@@ -45,10 +45,10 @@ export async function GET(
 // POST create a new stop
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const tripId = params.id;
+    const { id: tripId } = await params;
 
     const body = await request.json();
 

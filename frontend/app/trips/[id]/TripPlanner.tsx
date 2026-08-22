@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import PlaceAutocomplete from "../../components/PlaceAutocomplete";
 
 interface Stop {
   id?: string;
@@ -230,31 +231,30 @@ export default function TripPlanner({
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium">
-              Stop Title
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Stop Title / Place <span className="text-red-500">*</span>
             </label>
 
-            <input
-              type="text"
-              placeholder="Eiffel Tower"
+            <PlaceAutocomplete
               value={newStop.title}
-              onChange={(e) =>
+              onChange={(val) =>
                 setNewStop({
                   ...newStop,
-                  title: e.target.value,
+                  title: val,
                 })
               }
-              className="w-full rounded-lg border p-3"
+              placeholder="Search a landmark or place (e.g. Gateway of India, Eiffel Tower)..."
+              required
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium">
-              Description
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Description / Notes
             </label>
 
             <textarea
-              placeholder="Visit the Eiffel Tower and explore the surrounding area..."
+              placeholder="Add activity details, opening hours, reservations, or notes..."
               rows={3}
               value={newStop.description}
               onChange={(e) =>
@@ -263,16 +263,26 @@ export default function TripPlanner({
                   description: e.target.value,
                 })
               }
-              className="w-full resize-none rounded-lg border p-3"
+              className="w-full resize-none rounded-xl border border-slate-300 bg-white p-3.5 text-sm font-medium text-[#172033] outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-[#0058bc] focus:ring-4 focus:ring-[#0058bc]/10"
             />
           </div>
 
           <button
             type="submit"
             disabled={adding}
-            className="rounded-lg bg-blue-600 px-5 py-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#0058bc] to-[#00b4d8] px-6 py-3 text-sm font-bold text-white shadow-md shadow-[#0058bc]/20 transition hover:brightness-105 disabled:opacity-50"
           >
-            {adding ? "Adding..." : "Add to Itinerary"}
+            {adding ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                <span>Adding Stop...</span>
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-[18px]">add</span>
+                <span>Add to Itinerary</span>
+              </>
+            )}
           </button>
         </form>
       </div>

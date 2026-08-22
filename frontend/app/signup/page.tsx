@@ -53,8 +53,12 @@ export default function SignupPage() {
         return;
       }
 
-      alert("Account created successfully!");
-      router.push("/");
+      if (data.user) {
+        localStorage.setItem("globetrotter_logged_in", "true");
+        localStorage.setItem("globetrotter_user", JSON.stringify(data.user));
+      }
+
+      router.push("/dashboard");
     } catch (err) {
       setError("Something went wrong. Please check your network connection.");
     } finally {
@@ -73,11 +77,13 @@ export default function SignupPage() {
           <div className="relative z-10 flex h-full flex-col justify-between p-12 text-white">
             <div>
               <div className="mb-10 flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f4c95d] text-xl">
-                  ✈
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0058bc] to-[#00b4d8] text-white shadow-md shadow-[#0058bc]/30">
+                  <span className="material-symbols-outlined text-[24px]">
+                    flight_takeoff
+                  </span>
                 </div>
 
-                <span className="text-2xl font-bold">
+                <span className="text-2xl font-bold tracking-tight">
                   GlobeTrotter
                 </span>
               </div>

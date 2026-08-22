@@ -26,22 +26,62 @@ export default function Dashboard() {
     }
 
     const savedUser = localStorage.getItem("globetrotter_user");
+    let userEmail = "";
 
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser);
         setUserName(user.name || "Traveler");
+        userEmail = user.email || "";
       } catch {
         setUserName("Traveler");
       }
     }
 
-    // Trip creation currently persists client-side. Reading from the same store
-    // keeps the dashboard, My Trips, and trip details in sync until PostgreSQL
-    // credentials are configured.
-    setTrips(getTrips());
-    setDestinations(featuredDestinations);
-    setLoading(false);
+    const loadDashboardTrips = async () => {
+      const local = getTrips();
+      let apiTrips: Trip[] = [];
+
+      if (userEmail) {
+        try {
+          const res = await fetch(`/api/trips?email=${encodeURIComponent(userEmail)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.trips)) {
+              apiTrips = data.trips.map((t: any) => ({
+                id: String(t.id),
+                name: t.name || t.title || "Trip",
+                startDate: t.startDate || t.start_date || "",
+                endDate: t.endDate || t.end_date || "",
+                description: t.description || "",
+                cities: t.cities || (t.destination ? [t.destination] : []),
+                budget: Number(t.budget || t.total_budget || 0),
+                status: t.status || "upcoming",
+                coverImage: t.coverImage || t.cover_photo_url || "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80",
+              }));
+            }
+          }
+        } catch (e) {
+          console.warn("Could not fetch API trips for dashboard:", e);
+        }
+      }
+
+      const seen = new Set<string>();
+      const merged: Trip[] = [];
+      for (const t of [...apiTrips, ...local]) {
+        const key = String(t.id);
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(t);
+        }
+      }
+
+      setTrips(merged);
+      setDestinations(featuredDestinations);
+      setLoading(false);
+    };
+
+    loadDashboardTrips();
   }, [router]);
 
   // Aggregate budget across all trips
@@ -64,15 +104,6 @@ export default function Dashboard() {
     breakdownAll.food += s.breakdown.food;
     breakdownAll.activities += s.breakdown.activities;
     breakdownAll.miscellaneous += s.breakdown.miscellaneous;
-  }
-
-  // Provide default mockup fallback if no expenses added yet
-  if (totalSpentAcrossAll === 0 && totalBudgetAcrossAll > 0) {
-    totalSpentAcrossAll = Math.round(totalBudgetAcrossAll * 0.45);
-    breakdownAll.transport = Math.round(totalSpentAcrossAll * 0.25);
-    breakdownAll.accommodation = Math.round(totalSpentAcrossAll * 0.4);
-    breakdownAll.activities = Math.round(totalSpentAcrossAll * 0.2);
-    breakdownAll.food = Math.round(totalSpentAcrossAll * 0.15);
   }
 
   const overallPercent =
@@ -139,35 +170,29 @@ export default function Dashboard() {
               My Trips
             </Link>
             <Link
-              href="/cities"
+              href="/profile"
               className="text-slate-600 hover:text-[#0058bc]"
             >
-              Explore
+              Profile
             </Link>
           </nav>
 
           <div className="flex items-center gap-3">
-            <button className="rounded-full p-2 hover:bg-slate-100">
-              <span className="material-symbols-outlined">
-                notifications
-              </span>
-            </button>
-
             <Link
               href="/profile"
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 rounded-full p-1 transition hover:bg-slate-100"
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0058bc] font-bold text-white">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0058bc] font-bold text-white shadow-sm">
                 {userName.charAt(0).toUpperCase()}
               </div>
-              <span className="hidden font-medium sm:block">
+              <span className="hidden font-medium sm:block text-sm text-[#172033] mr-1">
                 {userName}
               </span>
             </Link>
 
             <button
               onClick={logout}
-              className="hidden text-sm text-slate-500 hover:text-red-500 lg:block"
+              className="hidden text-sm font-medium text-slate-500 hover:text-red-500 lg:block ml-2"
             >
               Logout
             </button>
@@ -214,7 +239,7 @@ export default function Dashboard() {
             icon="location_on"
             label="Cities Explored"
             value={String(
-              new Set(trips.flatMap((t) => t.cities || [])).size || 18
+              new Set(trips.flatMap((t) => t.cities || [])).size
             )}
           />
           <Stat
@@ -222,10 +247,12 @@ export default function Dashboard() {
             label="Travel Days"
             value={String(
               trips.reduce((acc, t) => {
+                if (!t.startDate || !t.endDate) return acc;
                 const s = new Date(t.startDate).getTime();
                 const e = new Date(t.endDate).getTime();
+                if (isNaN(s) || isNaN(e)) return acc;
                 return acc + Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1);
-              }, 0) || 46
+              }, 0)
             )}
           />
           <Stat
@@ -462,8 +489,7 @@ export default function Dashboard() {
 
           <div className="mt-6 grid gap-6 md:grid-cols-3">
             {destinations.map((destination) => (
-              <Link
-                href="/cities"
+              <div
                 key={destination.name}
                 className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-1 hover:shadow-xl"
               >
@@ -482,7 +508,7 @@ export default function Dashboard() {
                     {destination.country}
                   </p>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         </section>
@@ -536,11 +562,31 @@ function Budget({
   );
 }
 
-function formatDate(date: string) {
-  if (!date) return "";
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+function formatDate(dateStr: string) {
+  if (!dateStr) return "";
+  try {
+    if (typeof dateStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) {
+      const [y, m, d] = dateStr.trim().split("-").map(Number);
+      const dt = new Date(y, m - 1, d);
+      return dt.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    }
+
+    const dt = new Date(dateStr);
+    if (!isNaN(dt.getTime())) {
+      return dt.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    }
+
+    return String(dateStr);
+  } catch {
+    return String(dateStr);
+  }
 }
+
