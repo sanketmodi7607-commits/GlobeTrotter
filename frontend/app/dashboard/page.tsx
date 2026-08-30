@@ -26,19 +26,62 @@ export default function Dashboard() {
     }
 
     const savedUser = localStorage.getItem("globetrotter_user");
+    let userEmail = "";
 
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser);
         setUserName(user.name || "Traveler");
+        userEmail = user.email || "";
       } catch {
         setUserName("Traveler");
       }
     }
 
-    setTrips(getTrips());
-    setDestinations(featuredDestinations);
-    setLoading(false);
+    const loadDashboardTrips = async () => {
+      const local = getTrips();
+      let apiTrips: Trip[] = [];
+
+      if (userEmail) {
+        try {
+          const res = await fetch(`/api/trips?email=${encodeURIComponent(userEmail)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.trips)) {
+              apiTrips = data.trips.map((t: any) => ({
+                id: String(t.id),
+                name: t.name || t.title || "Trip",
+                startDate: t.startDate || t.start_date || "",
+                endDate: t.endDate || t.end_date || "",
+                description: t.description || "",
+                cities: t.cities || (t.destination ? [t.destination] : []),
+                budget: Number(t.budget || t.total_budget || 0),
+                status: t.status || "upcoming",
+                coverImage: t.coverImage || t.cover_photo_url || "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80",
+              }));
+            }
+          }
+        } catch (e) {
+          console.warn("Could not fetch API trips for dashboard:", e);
+        }
+      }
+
+      const seen = new Set<string>();
+      const merged: Trip[] = [];
+      for (const t of [...apiTrips, ...local]) {
+        const key = String(t.id);
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(t);
+        }
+      }
+
+      setTrips(merged);
+      setDestinations(featuredDestinations);
+      setLoading(false);
+    };
+
+    loadDashboardTrips();
   }, [router]);
 
   // Aggregate budget across all trips
@@ -519,11 +562,31 @@ function Budget({
   );
 }
 
-function formatDate(date: string) {
-  if (!date) return "";
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+function formatDate(dateStr: string) {
+  if (!dateStr) return "";
+  try {
+    if (typeof dateStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) {
+      const [y, m, d] = dateStr.trim().split("-").map(Number);
+      const dt = new Date(y, m - 1, d);
+      return dt.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    }
+
+    const dt = new Date(dateStr);
+    if (!isNaN(dt.getTime())) {
+      return dt.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    }
+
+    return String(dateStr);
+  } catch {
+    return String(dateStr);
+  }
 }
+

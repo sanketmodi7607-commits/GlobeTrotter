@@ -8,11 +8,11 @@ export async function GET(
   {
     params,
   }: {
-    params: { id: string; stopId: string };
+    params: Promise<{ id: string; stopId: string }>;
   }
 ) {
   try {
-    const stopId = params.stopId;
+    const { stopId } = await params;
 
     const activitiesResult = await pool.query(
       `
@@ -52,11 +52,11 @@ export async function POST(
   {
     params,
   }: {
-    params: { id: string; stopId: string };
+    params: Promise<{ id: string; stopId: string }>;
   }
 ) {
   try {
-    const stopId = params.stopId;
+    const { stopId } = await params;
 
     const body = await request.json();
 

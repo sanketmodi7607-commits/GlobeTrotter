@@ -8,11 +8,11 @@ export async function GET(
   {
     params,
   }: {
-    params: { id: string; stopId: string };
+    params: Promise<{ id: string; stopId: string }>;
   }
 ) {
   try {
-    const { id, stopId } = params;
+    const { id, stopId } = await params;
 
     const result = await pool.query(
       `
@@ -58,11 +58,11 @@ export async function DELETE(
   {
     params,
   }: {
-    params: { id: string; stopId: string };
+    params: Promise<{ id: string; stopId: string }>;
   }
 ) {
   try {
-    const { id, stopId } = params;
+    const { id, stopId } = await params;
 
     const result = await pool.query(
       `
